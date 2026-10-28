@@ -58,6 +58,13 @@ type Manager interface {
 	// StopWifiAP tears down the hotspot previously started by StartWifiAP;
 	// opts.ConnName must match the one used to start it.
 	StopWifiAP(opts WifiAPOptions) error
+	// WifiPowerSave reports whether the interface's Wi-Fi power save is
+	// currently enabled; iface is Interface.Name or "" for the default.
+	WifiPowerSave(iface string) (bool, error)
+	// SetWifiPowerSave enables or disables Wi-Fi power save at runtime;
+	// persist additionally writes the preference into the interface's
+	// active connection profile where the platform supports it.
+	SetWifiPowerSave(iface string, enable, persist bool) error
 	// Proxy reads the current system proxy (iface may narrow the platform's
 	// scope, e.g. a macOS network service).
 	Proxy(iface string) (ProxyConfig, error)

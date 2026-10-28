@@ -217,6 +217,20 @@ func (m *windowsManager) StopWifiAP(opts WifiAPOptions) error {
 	return newError(CodeUnsupported, "stopping a hotspot is not supported on Windows yet; use Settings > Network & internet > Mobile hotspot")
 }
 
+// WifiPowerSave is not implemented on Windows: adapter power saving lives in
+// the per-adapter power management tab (device manager), not in netsh.
+func (m *windowsManager) WifiPowerSave(iface string) (bool, error) {
+	_ = iface
+	return false, newError(CodeUnsupported, "Wi-Fi power save control is not supported on Windows yet; use Device Manager > adapter > Power Management")
+}
+
+func (m *windowsManager) SetWifiPowerSave(iface string, enable, persist bool) error {
+	_ = iface
+	_ = enable
+	_ = persist
+	return newError(CodeUnsupported, "Wi-Fi power save control is not supported on Windows yet; use Device Manager > adapter > Power Management")
+}
+
 const proxyRegPath = `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 
 func (m *windowsManager) Proxy(iface string) (ProxyConfig, error) {

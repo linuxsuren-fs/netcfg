@@ -102,6 +102,16 @@ name, so consecutive starts converge; stop removes the profile again.
 Passwords on the command line are visible to other local users via `/proc` —
 prefer the prompt (omit `--password`) or an empty value for an open network.
 
+Wi-Fi power save — phones or tablets dropping off a hotspot intermittently?
+Disable the interface's power save (persisted into the active connection, so
+it survives reboots; Linux):
+
+```bash
+sudo netcfg wifi power-save --off     # fix for intermittent client drops
+netcfg wifi power-save                # show current state
+sudo netcfg wifi power-save --on --no-persist   # runtime only
+```
+
 Hosts file — netcfg only edits a marked section, every other line is preserved byte-for-byte:
 
 ```bash

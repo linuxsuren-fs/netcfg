@@ -79,13 +79,14 @@ type ProxyConfig struct {
 // Capabilities tells the UI which operations the current platform backend
 // actually supports, so it can hide or disable the rest instead of failing.
 type Capabilities struct {
-	SetIP    bool `json:"set_ip"`
-	SetDNS   bool `json:"set_dns"`
-	WifiScan bool `json:"wifi_scan"`
-	WifiJoin bool `json:"wifi_join"`
-	WifiAP   bool `json:"wifi_ap"`
-	Proxy    bool `json:"proxy"`
-	Hosts    bool `json:"hosts"`
+	SetIP         bool `json:"set_ip"`
+	SetDNS        bool `json:"set_dns"`
+	WifiScan      bool `json:"wifi_scan"`
+	WifiJoin      bool `json:"wifi_join"`
+	WifiAP        bool `json:"wifi_ap"`
+	WifiPowerSave bool `json:"wifi_power_save"`
+	Proxy         bool `json:"proxy"`
+	Hosts         bool `json:"hosts"`
 }
 
 // HostEntry is one line of the hosts file. A line may map several hostnames

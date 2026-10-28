@@ -150,6 +150,57 @@ var wifiAPStopCmd = &cobra.Command{
 	},
 }
 
+var (
+	psIface     string
+	psOn        bool
+	psOff       bool
+	psNoPersist bool
+	psDry       bool
+)
+
+var wifiPowerSaveCmd = &cobra.Command{
+	Use:   "power-save",
+	Short: "Show or toggle Wi-Fi interface power save",
+	Long: `Show or toggle Wi-Fi interface power save.
+
+Without --on/--off prints the current state. Disabling power save is the
+first thing to try when Wi-Fi clients of a hotspot (phones, tablets)
+drop off intermittently. By default the setting is also persisted into
+the interface's active connection profile so it survives reboots
+(NetworkManager on Linux); --no-persist changes the runtime only.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mgr := newManager(psDry)
+		if !psOn && !psOff {
+			enabled, err := mgr.WifiPowerSave(psIface)
+			if err != nil {
+				return exitErr(cmd, err)
+			}
+			if outputJSON {
+				printJSON(cmd.OutOrStdout(), map[string]bool{"power_save": enabled})
+				return nil
+			}
+			state := "off"
+			if enabled {
+				state = "on"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Wi-Fi power save: %s\n", state)
+			return nil
+		}
+		if psOn && psOff {
+			return exitErr(cmd, fmt.Errorf("use either --on or --off, not both"))
+		}
+		if err := mgr.SetWifiPowerSave(psIface, psOn, !psNoPersist); err != nil {
+			return exitErr(cmd, err)
+		}
+		if psDry {
+			reportDry(mgr)
+			return nil
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "Wi-Fi power save updated")
+		return nil
+	},
+}
+
 var wifiAPCmd = &cobra.Command{
 	Use:   "ap",
 	Short: "Start and stop a Wi-Fi hotspot (AP mode)",
@@ -183,5 +234,13 @@ func init() {
 	tf.BoolVar(&wifiAPDry, "dry-run", false, "print the system commands instead of running them")
 	wifiAPCmd.AddCommand(wifiAPStopCmd)
 	wifiCmd.AddCommand(wifiAPCmd)
+
+	pf := wifiPowerSaveCmd.Flags()
+	pf.StringVar(&psIface, "iface", "", "interface to use (defaults to the platform's Wi-Fi interface)")
+	pf.BoolVar(&psOn, "on", false, "enable power save")
+	pf.BoolVar(&psOff, "off", false, "disable power save (recommended for hotspots with intermittent client drops)")
+	pf.BoolVar(&psNoPersist, "no-persist", false, "change the runtime only, do not write it into the connection profile")
+	pf.BoolVar(&psDry, "dry-run", false, "print the system commands instead of running them")
+	wifiCmd.AddCommand(wifiPowerSaveCmd)
 	rootCmd.AddCommand(wifiCmd)
 }

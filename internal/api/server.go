@@ -47,6 +47,8 @@ func (s *Server) routes(webFS fs.FS) {
 	m.HandleFunc("POST /api/wifi/connect", s.handleWifiConnect)
 	m.HandleFunc("POST /api/wifi/ap", s.handleWifiAPStart)
 	m.HandleFunc("DELETE /api/wifi/ap", s.handleWifiAPStop)
+	m.HandleFunc("GET /api/wifi/power-save", s.handleWifiPowerSaveGet)
+	m.HandleFunc("POST /api/wifi/power-save", s.handleWifiPowerSaveSet)
 	m.HandleFunc("GET /api/hosts", s.handleHostsList)
 	m.HandleFunc("POST /api/hosts", s.handleHostsAdd)
 	m.HandleFunc("DELETE /api/hosts/{hostname}", s.handleHostsRemove)
@@ -188,6 +190,41 @@ func (s *Server) handleWifiAPStart(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWifiAPStop(w http.ResponseWriter, r *http.Request) {
 	conn := r.URL.Query().Get("name")
 	if err := s.mgr.StopWifiAP(netconf.WifiAPOptions{ConnName: conn}); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeData(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleWifiPowerSaveGet(w http.ResponseWriter, r *http.Request) {
+	enabled, err := s.mgr.WifiPowerSave(r.URL.Query().Get("interface"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeData(w, http.StatusOK, map[string]bool{"power_save": enabled})
+}
+
+func (s *Server) handleWifiPowerSaveSet(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Interface string `json:"interface"`
+		Enable    *bool  `json:"enable"`
+		Persist   *bool  `json:"persist"`
+	}
+	if err := decodeBody(r, &body); err != nil {
+		writeError(w, err)
+		return
+	}
+	if body.Enable == nil {
+		writeError(w, &netconf.Error{Code: netconf.CodeInvalidArgument,
+			Err: errors.New("enable is required")})
+		return
+	}
+	persist := true
+	if body.Persist != nil {
+		persist = *body.Persist
+	}
+	if err := s.mgr.SetWifiPowerSave(body.Interface, *body.Enable, persist); err != nil {
 		writeError(w, err)
 		return
 	}
