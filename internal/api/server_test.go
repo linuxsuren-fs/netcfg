@@ -23,6 +23,8 @@ type fakeManager struct {
 	lastWifi        string
 	lastAP          string
 	stoppedAP       string
+	psState         bool
+	psPersist       bool
 	lastProxy       netconf.ProxyConfig
 }
 
@@ -71,6 +73,14 @@ func (f *fakeManager) StopWifiAP(opts netconf.WifiAPOptions) error {
 		return &netconf.Error{Code: netconf.CodeNotFound, Err: errStr("no such hotspot")}
 	}
 	f.stoppedAP = opts.ConnName
+	return nil
+}
+
+func (f *fakeManager) WifiPowerSave(iface string) (bool, error) { return f.psState, nil }
+
+func (f *fakeManager) SetWifiPowerSave(iface string, enable, persist bool) error {
+	f.psState = enable
+	f.psPersist = persist
 	return nil
 }
 func (f *fakeManager) Proxy(iface string) (netconf.ProxyConfig, error) { return f.proxy, nil }
@@ -215,6 +225,37 @@ func TestWifiAPEndpoints(t *testing.T) {
 	rec, _ = doJSON(t, srv, http.MethodDelete, "/api/wifi/ap?name=missing-ap", "")
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("missing ap code = %d", rec.Code)
+	}
+}
+
+func TestWifiPowerSaveEndpoints(t *testing.T) {
+	srv, mgr, _ := newTestServer(t)
+	rec, body := doJSON(t, srv, http.MethodGet, "/api/wifi/power-save", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get code = %d body = %v", rec.Code, body)
+	}
+	if body["data"].(map[string]any)["power_save"] != false {
+		t.Errorf("get body = %v", body)
+	}
+	rec, _ = doJSON(t, srv, http.MethodPost, "/api/wifi/power-save",
+		`{"interface":"wlan0","enable":false}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("set code = %d", rec.Code)
+	}
+	if mgr.psState || !mgr.psPersist {
+		t.Errorf("state=%v persist=%v want false/true", mgr.psState, mgr.psPersist)
+	}
+	rec, _ = doJSON(t, srv, http.MethodPost, "/api/wifi/power-save", `{"persist":false}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("missing enable code = %d", rec.Code)
+	}
+	rec, _ = doJSON(t, srv, http.MethodPost, "/api/wifi/power-save",
+		`{"enable":true,"persist":false}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("set2 code = %d", rec.Code)
+	}
+	if !mgr.psState || mgr.psPersist {
+		t.Errorf("state=%v persist=%v want true/false", mgr.psState, mgr.psPersist)
 	}
 }
 

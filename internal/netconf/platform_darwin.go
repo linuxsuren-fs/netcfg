@@ -283,6 +283,20 @@ func (m *darwinManager) StopWifiAP(opts WifiAPOptions) error {
 	return newError(CodeUnsupported, "stopping a hotspot is not supported on macOS; use System Settings > Sharing > Internet Sharing")
 }
 
+// WifiPowerSave is not implemented on macOS: Wi-Fi power management follows
+// the system energy-saver settings and has no stable CLI toggle.
+func (m *darwinManager) WifiPowerSave(iface string) (bool, error) {
+	_ = iface
+	return false, newError(CodeUnsupported, "Wi-Fi power save control is not supported on macOS; use System Settings > Battery > Energy Saver")
+}
+
+func (m *darwinManager) SetWifiPowerSave(iface string, enable, persist bool) error {
+	_ = iface
+	_ = enable
+	_ = persist
+	return newError(CodeUnsupported, "Wi-Fi power save control is not supported on macOS; use System Settings > Battery > Energy Saver")
+}
+
 func (m *darwinManager) defaultWifiService() (string, error) {
 	ifaces, err := m.Interfaces()
 	if err != nil {

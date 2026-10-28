@@ -41,14 +41,20 @@ func (m *linuxManager) DryCommands() []string {
 
 func (m *linuxManager) Capabilities() Capabilities {
 	return Capabilities{
-		SetIP:    m.hasNM,
-		SetDNS:   m.hasNM,
-		WifiScan: m.hasNM,
-		WifiJoin: m.hasNM,
-		WifiAP:   m.hasNM,
-		Proxy:    hasGsettings(),
-		Hosts:    true,
+		SetIP:         m.hasNM,
+		SetDNS:        m.hasNM,
+		WifiScan:      m.hasNM,
+		WifiJoin:      m.hasNM,
+		WifiAP:        m.hasNM,
+		WifiPowerSave: hasIw(),
+		Proxy:         hasGsettings(),
+		Hosts:         true,
 	}
+}
+
+func hasIw() bool {
+	_, err := exec.LookPath("iw")
+	return err == nil
 }
 
 func hasGsettings() bool {
@@ -318,12 +324,8 @@ func (m *linuxManager) StartWifiAP(iface, ssid, password string, opts WifiAPOpti
 	if err := validateWifiAPArgs(ssid, password, opts); err != nil {
 		return err
 	}
-	if iface == "" {
-		var err error
-		if iface, err = m.defaultWifiDevice(); err != nil {
-			return err
-		}
-	} else if err := m.requireDevice(iface); err != nil {
+	iface, err := m.wifiIfaceOrDefault(iface)
+	if err != nil {
 		return err
 	}
 	conn := apConnectionName(opts)
@@ -385,6 +387,78 @@ func (m *linuxManager) StopWifiAP(opts WifiAPOptions) error {
 		return err
 	}
 	return errNil(m.mutate.Run("nmcli", "connection", "delete", conn))
+}
+
+// wifiIfaceOrDefault resolves "" to the first Wi-Fi interface and validates
+// explicit names.
+func (m *linuxManager) wifiIfaceOrDefault(iface string) (string, error) {
+	if iface != "" {
+		if err := m.requireDevice(iface); err != nil {
+			return "", err
+		}
+		return iface, nil
+	}
+	return m.defaultWifiDevice()
+}
+
+// nmPowerSaveValue maps enabled to NetworkManager's 802-11-wireless.powersave
+// property: 2 = disable, 3 = enable.
+func nmPowerSaveValue(enable bool) string {
+	if enable {
+		return "3"
+	}
+	return "2"
+}
+
+func (m *linuxManager) WifiPowerSave(iface string) (bool, error) {
+	if !hasIw() {
+		return false, newError(CodeUnsupported, "iw not found; cannot read Wi-Fi power save state")
+	}
+	iface, err := m.wifiIfaceOrDefault(iface)
+	if err != nil {
+		return false, err
+	}
+	out, err := m.query.Run("iw", "dev", iface, "get", "power_save")
+	if err != nil {
+		return false, err
+	}
+	if strings.Contains(out, "on") {
+		return true, nil
+	}
+	if strings.Contains(out, "off") {
+		return false, nil
+	}
+	return false, newError(CodeCommandFailed, "unexpected `iw get power_save` output: %q", out)
+}
+
+func (m *linuxManager) SetWifiPowerSave(iface string, enable, persist bool) error {
+	if !hasIw() {
+		return newError(CodeUnsupported, "iw not found; cannot change Wi-Fi power save")
+	}
+	iface, err := m.wifiIfaceOrDefault(iface)
+	if err != nil {
+		return err
+	}
+	state := "off"
+	if enable {
+		state = "on"
+	}
+	if _, err := m.mutate.Run("iw", "dev", iface, "set", "power_save", state); err != nil {
+		return err
+	}
+	if !persist {
+		return nil
+	}
+	if !m.hasNM {
+		return newError(CodeUnsupported, "NetworkManager (nmcli) not found; cannot persist power save into a connection profile")
+	}
+	connection, err := m.connectionOf(iface)
+	if err != nil {
+		return newError(CodeNotFound,
+			"power save set at runtime, but interface %s has no active connection to persist into: %v", iface, err)
+	}
+	return errNil(m.mutate.Run("nmcli", "connection", "modify", connection,
+		"802-11-wireless.powersave", nmPowerSaveValue(enable)))
 }
 
 const gsettingsProxyBase = "org.gnome.system.proxy"
